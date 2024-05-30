@@ -40,12 +40,33 @@ def main():
         method, path, http_version = request_line.split()
         print(f"Method: {method}, Path: {path}, HTTP Version: {http_version}")
 
-        # Check if the path matches the /echo/{str} pattern.
-        match = re.match(r'^/echo/(.*)$', path)
-        if match:
-            # Extract the string from the path.
-            echo_str = match.group(1)
-            # Generate the HTTP response with the echo string.
+        # Initialize the User-Agent header value
+        user_agent = None
+
+        # Extract headers from the request
+        headers = request.split('\r\n\r\n')[0].split('\r\n')[1:]
+        for header in headers:
+            header_name, header_value = header.split(': ', 1)
+            if header_name.lower() == 'user-agent':
+                user_agent = header_value
+                break
+
+        # Check if the path matches the /user-agent endpoint.
+        if path == "/user-agent" and user_agent is not None:
+            # Generate the HTTP response with the User-Agent value.
+            http_response = (
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/plain\r\n"
+                f"Content-Length: {len(user_agent)}\r\n"
+                "\r\n"
+                f"{user_agent}"
+            )
+        elif path == "/":
+            # Handle the root path with a 200 OK response.
+            http_response = "HTTP/1.1 200 OK\r\n\r\n"
+        elif re.match(r'^/echo/(.*)$', path):
+            # Handle the /echo/{str} endpoint.
+            echo_str = re.match(r'^/echo/(.*)$', path).group(1)
             http_response = (
                 "HTTP/1.1 200 OK\r\n"
                 "Content-Type: text/plain\r\n"
@@ -53,9 +74,6 @@ def main():
                 "\r\n"
                 f"{echo_str}"
             )
-        elif path == "/":
-            # Handle the root path with a 200 OK response.
-            http_response = "HTTP/1.1 200 OK\r\n\r\n"
         else:
             # Handle any other path with a 404 Not Found response.
             http_response = "HTTP/1.1 404 Not Found\r\n\r\n"
