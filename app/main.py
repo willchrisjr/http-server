@@ -20,17 +20,6 @@ def handle_client(client_socket, directory):
         method, path, http_version = request_line.split()
         print(f"Method: {method}, Path: {path}, HTTP Version: {http_version}")
 
-        # Initialize the User-Agent header value
-        user_agent = None
-
-        # Extract headers from the request
-        headers = request.split('\r\n\r\n')[0].split('\r\n')[1:]
-        for header in headers:
-            header_name, header_value = header.split(': ', 1)
-            if header_name.lower() == 'user-agent':
-                user_agent = header_value
-                break
-
         # Check if the path matches the /files/<filename> pattern.
         match = re.match(r'^/files/(.*)$', path)
         if match:
@@ -51,28 +40,6 @@ def handle_client(client_socket, directory):
             else:
                 # File not found, respond with 404 Not Found.
                 http_response = "HTTP/1.1 404 Not Found\r\n\r\n".encode('utf-8')
-        elif path == "/user-agent" and user_agent is not None:
-            # Handle the /user-agent endpoint.
-            http_response = (
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/plain\r\n"
-                f"Content-Length: {len(user_agent)}\r\n"
-                "\r\n"
-                f"{user_agent}"
-            ).encode('utf-8')
-        elif path == "/":
-            # Handle the root path with a 200 OK response.
-            http_response = "HTTP/1.1 200 OK\r\n\r\n".encode('utf-8')
-        elif re.match(r'^/echo/(.*)$', path):
-            # Handle the /echo/{str} endpoint.
-            echo_str = re.match(r'^/echo/(.*)$', path).group(1)
-            http_response = (
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/plain\r\n"
-                f"Content-Length: {len(echo_str)}\r\n"
-                "\r\n"
-                f"{echo_str}"
-            ).encode('utf-8')
         else:
             # Handle any other path with a 404 Not Found response.
             http_response = "HTTP/1.1 404 Not Found\r\n\r\n".encode('utf-8')
