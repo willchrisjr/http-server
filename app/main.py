@@ -4,39 +4,10 @@ import sys
 import re
 import os
 import argparse
+import threading
 
-def main():
-    # Parse command-line arguments to get the directory path
-    parser = argparse.ArgumentParser(description='Simple HTTP Server')
-    parser.add_argument('--directory', required=True, help='Directory to serve files from')
-    args = parser.parse_args()
-    directory = args.directory
-
-    # Print statements for debugging, they'll be visible when running tests.
-    print("Logs from your program will appear here!")
-    print(f"Serving files from directory: {directory}")
-
-    # Create a server socket that listens on localhost at port 4221.
-    # The reuse_port=True option allows the socket to be reused immediately after the program exits.
-    server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
-    
-    # Define a signal handler to gracefully shut down the server
-    def signal_handler(sig, frame):
-        print("Shutting down the server...")
-        server_socket.close()
-        sys.exit(0)
-
-    # Register the signal handler for SIGINT (Ctrl+C)
-    signal.signal(signal.SIGINT, signal_handler)
-
-    while True:
-        # Wait for a client to connect.
-        # The accept() method blocks and waits for an incoming connection.
-        client_socket, client_address = server_socket.accept()
-        
-        # Print the client address for debugging purposes.
-        print(f"Connection from {client_address}")
-
+def handle_client(client_socket, directory):
+    try:
         # Read the HTTP request from the client.
         request = client_socket.recv(1024).decode('utf-8')
         print(f"Received request:\n{request}")
@@ -109,8 +80,45 @@ def main():
         # Send the HTTP response to the client.
         client_socket.sendall(http_response)
 
+    finally:
         # Close the client socket to indicate that the response has been sent.
         client_socket.close()
+
+def main():
+    # Parse command-line arguments to get the directory path
+    parser = argparse.ArgumentParser(description='Simple HTTP Server')
+    parser.add_argument('--directory', required=True, help='Directory to serve files from')
+    args = parser.parse_args()
+    directory = args.directory
+
+    # Print statements for debugging, they'll be visible when running tests.
+    print("Logs from your program will appear here!")
+    print(f"Serving files from directory: {directory}")
+
+    # Create a server socket that listens on localhost at port 4221.
+    # The reuse_port=True option allows the socket to be reused immediately after the program exits.
+    server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
+    
+    # Define a signal handler to gracefully shut down the server
+    def signal_handler(sig, frame):
+        print("Shutting down the server...")
+        server_socket.close()
+        sys.exit(0)
+
+    # Register the signal handler for SIGINT (Ctrl+C)
+    signal.signal(signal.SIGINT, signal_handler)
+
+    while True:
+        # Wait for a client to connect.
+        # The accept() method blocks and waits for an incoming connection.
+        client_socket, client_address = server_socket.accept()
+        
+        # Print the client address for debugging purposes.
+        print(f"Connection from {client_address}")
+
+        # Create a new thread to handle the client connection.
+        client_thread = threading.Thread(target=handle_client, args=(client_socket, directory))
+        client_thread.start()
 
 if __name__ == "__main__":
     main()
