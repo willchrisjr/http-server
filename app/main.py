@@ -1,6 +1,7 @@
 import socket
 import signal
 import sys
+import re
 
 def main():
     # Print statements for debugging, they'll be visible when running tests.
@@ -39,10 +40,24 @@ def main():
         method, path, http_version = request_line.split()
         print(f"Method: {method}, Path: {path}, HTTP Version: {http_version}")
 
-        # Determine the response based on the URL path.
-        if path == "/":
+        # Check if the path matches the /echo/{str} pattern.
+        match = re.match(r'^/echo/(.*)$', path)
+        if match:
+            # Extract the string from the path.
+            echo_str = match.group(1)
+            # Generate the HTTP response with the echo string.
+            http_response = (
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/plain\r\n"
+                f"Content-Length: {len(echo_str)}\r\n"
+                "\r\n"
+                f"{echo_str}"
+            )
+        elif path == "/":
+            # Handle the root path with a 200 OK response.
             http_response = "HTTP/1.1 200 OK\r\n\r\n"
         else:
+            # Handle any other path with a 404 Not Found response.
             http_response = "HTTP/1.1 404 Not Found\r\n\r\n"
 
         # Send the HTTP response to the client.
