@@ -2,10 +2,19 @@ import socket
 import signal
 import sys
 import re
+import os
+import argparse
 
 def main():
+    # Parse command-line arguments to get the directory path
+    parser = argparse.ArgumentParser(description='Simple HTTP Server')
+    parser.add_argument('--directory', required=True, help='Directory to serve files from')
+    args = parser.parse_args()
+    directory = args.directory
+
     # Print statements for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
+    print(f"Serving files from directory: {directory}")
 
     # Create a server socket that listens on localhost at port 4221.
     # The reuse_port=True option allows the socket to be reused immediately after the program exits.
@@ -51,19 +60,38 @@ def main():
                 user_agent = header_value
                 break
 
-        # Check if the path matches the /user-agent endpoint.
-        if path == "/user-agent" and user_agent is not None:
-            # Generate the HTTP response with the User-Agent value.
+        # Check if the path matches the /files/<filename> pattern.
+        match = re.match(r'^/files/(.*)$', path)
+        if match:
+            # Extract the filename from the path.
+            filename = match.group(1)
+            file_path = os.path.join(directory, filename)
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                # Read the file contents
+                with open(file_path, 'rb') as file:
+                    file_contents = file.read()
+                # Generate the HTTP response with the file contents.
+                http_response = (
+                    "HTTP/1.1 200 OK\r\n"
+                    "Content-Type: application/octet-stream\r\n"
+                    f"Content-Length: {len(file_contents)}\r\n"
+                    "\r\n"
+                ).encode('utf-8') + file_contents
+            else:
+                # File not found, respond with 404 Not Found.
+                http_response = "HTTP/1.1 404 Not Found\r\n\r\n".encode('utf-8')
+        elif path == "/user-agent" and user_agent is not None:
+            # Handle the /user-agent endpoint.
             http_response = (
                 "HTTP/1.1 200 OK\r\n"
                 "Content-Type: text/plain\r\n"
                 f"Content-Length: {len(user_agent)}\r\n"
                 "\r\n"
                 f"{user_agent}"
-            )
+            ).encode('utf-8')
         elif path == "/":
             # Handle the root path with a 200 OK response.
-            http_response = "HTTP/1.1 200 OK\r\n\r\n"
+            http_response = "HTTP/1.1 200 OK\r\n\r\n".encode('utf-8')
         elif re.match(r'^/echo/(.*)$', path):
             # Handle the /echo/{str} endpoint.
             echo_str = re.match(r'^/echo/(.*)$', path).group(1)
@@ -73,13 +101,13 @@ def main():
                 f"Content-Length: {len(echo_str)}\r\n"
                 "\r\n"
                 f"{echo_str}"
-            )
+            ).encode('utf-8')
         else:
             # Handle any other path with a 404 Not Found response.
-            http_response = "HTTP/1.1 404 Not Found\r\n\r\n"
+            http_response = "HTTP/1.1 404 Not Found\r\n\r\n".encode('utf-8')
 
         # Send the HTTP response to the client.
-        client_socket.sendall(http_response.encode('utf-8'))
+        client_socket.sendall(http_response)
 
         # Close the client socket to indicate that the response has been sent.
         client_socket.close()
