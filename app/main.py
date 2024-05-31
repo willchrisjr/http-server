@@ -16,7 +16,7 @@ def parse_request(content: bytes) -> tuple[str, str, dict[str, str], str]:
     headers: dict[str, str] = {}
     while (line := tail.pop(0)) != b"":
         key, value = line.split(b": ")
-        headers[key.decode()] = value.decode()
+        headers[key.decode().lower()] = value.decode()
     return method.decode(), path.decode(), headers, b"".join(tail).decode()
 
 def make_response(
@@ -49,12 +49,15 @@ async def handle_connection(reader: StreamReader, writer: StreamWriter) -> None:
         writer.write(b"HTTP/1.1 200 OK\r\n\r\n")
         stderr(f"[OUT] /")
     elif re.fullmatch(r"/user-agent", path):
-        ua = headers["User-Agent"]
+        ua = headers["user-agent"]
         writer.write(make_response(200, {"Content-Type": "text/plain"}, ua))
         stderr(f"[OUT] user-agent {ua}")
     elif match := re.fullmatch(r"/echo/(.+)", path):
         msg = match.group(1)
-        writer.write(make_response(200, {"Content-Type": "text/plain"}, msg))
+        response_headers = {"Content-Type": "text/plain"}
+        if "accept-encoding" in headers and "gzip" in headers["accept-encoding"]:
+            response_headers["Content-Encoding"] = "gzip"
+        writer.write(make_response(200, response_headers, msg))
         stderr(f"[OUT] echo {msg}")
     elif match := re.fullmatch(r"/files/(.+)", path):
         p = Path(GLOBALS["DIR"]) / match.group(1)
