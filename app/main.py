@@ -16,8 +16,16 @@ def handle_client(client_socket, directory):
         elif path.startswith('/echo'):
             response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(path[6:])}\r\n\r\n{path[6:]}".encode()
         elif path.startswith("/user-agent"):
-            user_agent = req[2].split(": ")[1]
-            response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}".encode()
+            # Extract the User-Agent header
+            user_agent = None
+            for header in req:
+                if header.lower().startswith("user-agent:"):
+                    user_agent = header.split(": ")[1]
+                    break
+            if user_agent:
+                response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}".encode()
+            else:
+                response = "HTTP/1.1 400 Bad Request\r\n\r\n".encode()
         elif path.startswith("/files"):
             filename = path[7:]
             file_path = os.path.join(directory, filename)
