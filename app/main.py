@@ -1,69 +1,55 @@
 import socket
 import signal
 import sys
-import re
-import os
-import argparse
 import threading
+import os
 
 def handle_client(client_socket, directory):
     try:
         # Read the HTTP request from the client.
-        request = client_socket.recv(1024).decode('utf-8')
-        print(f"Received request:\n{request}")
+        data = client_socket.recv(1024).decode()
+        req = data.split('\r\n')
+        path = req[0].split(" ")[1]
 
-        # Extract the request line (the first line of the request).
-        request_line = request.split('\r\n')[0]
-        print(f"Request line: {request_line}")
-
-        # Extract the URL path from the request line.
-        method, path, http_version = request_line.split()
-        print(f"Method: {method}, Path: {path}, HTTP Version: {http_version}")
-
-        # Check if the path matches the /files/<filename> pattern.
-        match = re.match(r'^/files/(.*)$', path)
-        if match:
-            # Extract the filename from the path.
-            filename = match.group(1)
+        if path == "/":
+            response = "HTTP/1.1 200 OK\r\n\r\n".encode()
+        elif path.startswith('/echo'):
+            response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(path[6:])}\r\n\r\n{path[6:]}".encode()
+        elif path.startswith("/user-agent"):
+            user_agent = req[2].split(": ")[1]
+            response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}".encode()
+        elif path.startswith("/files"):
+            filename = path[7:]
             file_path = os.path.join(directory, filename)
-            if os.path.exists(file_path) and os.path.isfile(file_path):
-                # Read the file contents
-                with open(file_path, 'rb') as file:
-                    file_contents = file.read()
-                # Generate the HTTP response with the file contents.
-                http_response = (
-                    "HTTP/1.1 200 OK\r\n"
+            try:
+                with open(file_path, "rb") as f:
+                    body = f.read()
+                response = (
+                    f"HTTP/1.1 200 OK\r\n"
                     "Content-Type: application/octet-stream\r\n"
-                    f"Content-Length: {len(file_contents)}\r\n"
-                    "\r\n"
-                ).encode('utf-8') + file_contents
-            else:
-                # File not found, respond with 404 Not Found.
-                http_response = "HTTP/1.1 404 Not Found\r\n\r\n".encode('utf-8')
+                    f"Content-Length: {len(body)}\r\n\r\n"
+                ).encode() + body
+            except Exception as e:
+                response = "HTTP/1.1 404 Not Found\r\n\r\n".encode()
         else:
-            # Handle any other path with a 404 Not Found response.
-            http_response = "HTTP/1.1 404 Not Found\r\n\r\n".encode('utf-8')
+            response = "HTTP/1.1 404 Not Found\r\n\r\n".encode()
 
-        # Send the HTTP response to the client.
-        client_socket.sendall(http_response)
-
+        client_socket.send(response)
     finally:
-        # Close the client socket to indicate that the response has been sent.
         client_socket.close()
 
 def main():
     # Parse command-line arguments to get the directory path
-    parser = argparse.ArgumentParser(description='Simple HTTP Server')
-    parser.add_argument('--directory', required=True, help='Directory to serve files from')
-    args = parser.parse_args()
-    directory = args.directory
+    if len(sys.argv) < 3 or sys.argv[1] != '--directory':
+        print("Usage: ./your_server.sh --directory <directory>")
+        sys.exit(1)
+    directory = sys.argv[2]
 
     # Print statements for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
     print(f"Serving files from directory: {directory}")
 
     # Create a server socket that listens on localhost at port 4221.
-    # The reuse_port=True option allows the socket to be reused immediately after the program exits.
     server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
     
     # Define a signal handler to gracefully shut down the server
@@ -76,16 +62,8 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     while True:
-        # Wait for a client to connect.
-        # The accept() method blocks and waits for an incoming connection.
         client_socket, client_address = server_socket.accept()
-        
-        # Print the client address for debugging purposes.
-        print(f"Connection from {client_address}")
-
-        # Create a new thread to handle the client connection.
-        client_thread = threading.Thread(target=handle_client, args=(client_socket, directory))
-        client_thread.start()
+        threading.Thread(target=handle_client, args=(client_socket, directory)).start()
 
 if __name__ == "__main__":
     main()
